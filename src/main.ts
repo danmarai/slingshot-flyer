@@ -7,7 +7,6 @@ import {
   MIN_PULL_DISTANCE,
   MAX_PULL_DISTANCE,
   LAUNCH_POWER_MULTIPLIER,
-  LAUNCH_ANGLE,
   PLANE_WIDTH,
   PLANE_HEIGHT,
   PLANE_LENGTH,
@@ -87,6 +86,7 @@ const planePosition = new THREE.Vector3(0, 1, 0);
 // Input state
 let isDragging = false;
 let pullDistance = 0;
+let launchAngle = 0.5; // 0 = flat, 1 = steep (controlled by vertical drag)
 const pullStart = new THREE.Vector2();
 const pullCurrent = new THREE.Vector2();
 
@@ -756,26 +756,42 @@ function onMouseMove(event: MouseEvent) {
 
   pullCurrent.set(event.clientX, event.clientY);
 
-  // Calculate pull distance (drag down and back)
+  // Calculate drag delta
+  const deltaX = pullCurrent.x - pullStart.x;
   const deltaY = pullCurrent.y - pullStart.y;
-  pullDistance = Math.min(MAX_PULL_DISTANCE, Math.max(0, deltaY / 30)); // More sensitive
+
+  // Pull distance is total drag distance (mostly vertical matters)
+  const totalDrag = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  pullDistance = Math.min(MAX_PULL_DISTANCE, Math.max(0, totalDrag / 20));
+
+  // Launch angle based on drag direction
+  // Dragging straight down = medium angle
+  // Dragging down-left = higher angle (more vertical)
+  // Dragging down-right = lower angle (more horizontal)
+  if (totalDrag > 10) {
+    // Angle from 15 to 60 degrees based on horizontal component
+    // Dragging left (negative deltaX) = higher angle
+    const angleInfluence = Math.max(-1, Math.min(1, -deltaX / 200));
+    launchAngle = 0.5 + angleInfluence * 0.4; // 0.1 to 0.9
+  }
 
   // Move plane back based on pull - more dramatic visual
   const startZ = getCheckpointStartPosition();
-  plane.position.z = startZ - pullDistance * 1.5; // More visible pullback
-  plane.position.y = slingshotHeight - pullDistance * 0.2;
+  plane.position.z = startZ - pullDistance * 1.2;
+  plane.position.y = slingshotHeight - pullDistance * 0.15 + launchAngle * 0.5;
 
-  // Tilt plane back slightly when pulling
-  plane.rotation.x = -pullDistance * 0.05;
+  // Tilt plane to show launch angle
+  plane.rotation.x = -(launchAngle - 0.5) * 0.5;
 
   updateRubberBands();
 
-  // Update power indicator in instructions
+  // Update power and angle indicator
   const powerPercent = Math.round((pullDistance / MAX_PULL_DISTANCE) * 100);
+  const angleDegrees = Math.round(15 + launchAngle * 50); // 15 to 65 degrees
   launchInstructions.querySelector("p")!.textContent =
     powerPercent > 0
-      ? `Power: ${powerPercent}% - Release to launch!`
-      : "Click and drag down to pull back, then release to launch!";
+      ? `Power: ${powerPercent}% | Angle: ${angleDegrees}° - Release to launch!`
+      : "Drag down to pull back (left/right adjusts angle)";
 }
 
 function onMouseUp() {
@@ -956,7 +972,14 @@ function launch() {
     upgrades.slingshot > 0
       ? UPGRADES.slingshot.tiers[upgrades.slingshot - 1].power
       : 1;
-  const power = pullDistance * LAUNCH_POWER_MULTIPLIER * slingshotMultiplier;
+
+  // Ensure minimum power so launches always go somewhere
+  const minPower = 20;
+  const basePower = pullDistance * LAUNCH_POWER_MULTIPLIER;
+  const power = Math.max(minPower, basePower) * slingshotMultiplier;
+
+  // Calculate actual launch angle from player input (15 to 65 degrees)
+  const actualAngle = (15 + launchAngle * 50) * (Math.PI / 180);
 
   // Get starting position from checkpoint
   const startZ = getCheckpointStartPosition();
@@ -966,12 +989,8 @@ function launch() {
   plane.position.set(0, slingshotHeight, startZ);
   plane.rotation.set(0, 0, 0); // Reset rotation for clean launch
 
-  // Set velocity - forward and up!
-  velocity.set(
-    0,
-    Math.sin(LAUNCH_ANGLE) * power,
-    Math.cos(LAUNCH_ANGLE) * power,
-  );
+  // Set velocity based on player-controlled angle
+  velocity.set(0, Math.sin(actualAngle) * power, Math.cos(actualAngle) * power);
 
   // Minimal tumble at start - plane should fly cleanly initially
   const tumbleMultiplier = upgrades.wings > 0 ? 0.1 : 0.5;
@@ -984,6 +1003,9 @@ function launch() {
 
   // Reset distance tracking for this run
   highestDistanceThisRun = 0;
+
+  // Reset launch angle for next time
+  launchAngle = 0.5;
 
   // Hide rubber bands during flight
   rubberBandLeft.visible = false;

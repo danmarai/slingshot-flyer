@@ -6,7 +6,7 @@ export const BOUNCE_DAMPING = 0.5;
 export const TUMBLE_SLOWDOWN = 0.95; // Speed multiplier when tumbling without wheels
 
 // Launch constants
-export const MIN_PULL_DISTANCE = 1; // Require more pull to launch
+export const MIN_PULL_DISTANCE = 0.3; // Small pull still launches (with minimum power)
 export const MAX_PULL_DISTANCE = 8;
 export const LAUNCH_POWER_MULTIPLIER = 15; // Much stronger launch
 export const LAUNCH_ANGLE = 30 * (Math.PI / 180); // 30 degrees - higher arc
