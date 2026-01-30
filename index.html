@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slingshot Flyer</title>
+    <link rel="stylesheet" href="/styles/main.css" />
+  </head>
+  <body>
+    <div id="game-container">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- HUD Overlay -->
+      <div id="hud" class="hidden">
+        <div id="distance-display">0m</div>
+        <div id="zone-display">Runway</div>
+      </div>
+
+      <!-- Launch Instructions -->
+      <div id="launch-instructions">
+        <p>Click and drag the plane back, then release to launch!</p>
+      </div>
+
+      <!-- Crash Overlay -->
+      <div id="crash-overlay" class="hidden">
+        <div class="crash-content">
+          <h2>Crashed!</h2>
+          <p>Distance: <span id="crash-distance">0</span>m</p>
+          <p>Coins earned: <span id="crash-coins">0</span></p>
+          <button id="continue-btn">Continue</button>
+        </div>
+      </div>
+
+      <!-- Bottom Navigation -->
+      <nav id="bottom-nav">
+        <button class="nav-btn" id="shop-btn" disabled>
+          <span class="icon">🏪</span>
+          <span class="label">Shop</span>
+        </button>
+        <button class="nav-btn active" id="play-btn">
+          <span class="icon">🏠</span>
+          <span class="label">Play</span>
+        </button>
+        <button class="nav-btn" id="upgrades-btn">
+          <span class="icon">⚙️</span>
+          <span class="label">Upgrades</span>
+        </button>
+      </nav>
+
+      <!-- Coin Display -->
+      <div id="coin-display">
+        <span class="coin-icon">🪙</span>
+        <span id="coin-count">0</span>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
