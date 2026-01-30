@@ -1200,7 +1200,10 @@ function updatePhysics(deltaTime: number) {
   const speed = velocity.length();
   const dragForce = speed * speed * effectiveDrag;
   if (speed > 0) {
-    velocity.multiplyScalar(1 - dragForce * deltaTime);
+    // CRITICAL FIX: Clamp the multiplier to never go negative (which would reverse velocity)
+    // With high speeds, dragForce * deltaTime can exceed 1, causing velocity to flip sign
+    const dragMultiplier = Math.max(0.1, 1 - dragForce * deltaTime);
+    velocity.multiplyScalar(dragMultiplier);
   }
 
   // Update position

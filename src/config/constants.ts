@@ -1,6 +1,6 @@
 // Physics constants
 export const GRAVITY = -15; // Reduced for floatier feel
-export const BASE_DRAG = 0.015; // Reduced drag for longer flights
+export const BASE_DRAG = 0.002; // Much lower drag so powerful launches fly far
 export const GROUND_FRICTION = 0.05;
 export const BOUNCE_DAMPING = 0.5;
 export const TUMBLE_SLOWDOWN = 0.95; // Speed multiplier when tumbling without wheels
