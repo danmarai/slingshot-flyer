@@ -1014,12 +1014,12 @@ function updatePhysics(deltaTime: number) {
 
   // Left/Right movement
   if (keys.left) {
-    velocity.x -= lateralControl * deltaTime;
-    plane.rotation.z = Math.min(plane.rotation.z + 2 * deltaTime, 0.3);
-  }
-  if (keys.right) {
     velocity.x += lateralControl * deltaTime;
     plane.rotation.z = Math.max(plane.rotation.z - 2 * deltaTime, -0.3);
+  }
+  if (keys.right) {
+    velocity.x -= lateralControl * deltaTime;
+    plane.rotation.z = Math.min(plane.rotation.z + 2 * deltaTime, 0.3);
   }
 
   // Up/Down pitch control (requires wings + tail)
