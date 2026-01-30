@@ -745,6 +745,12 @@ function updateRubberBands() {
 function onMouseDown(event: MouseEvent) {
   if (gameState !== "ready") return;
 
+  console.log("[onMouseDown] Starting pull", {
+    gameState,
+    planePosition: plane.position.clone(),
+    startingZ,
+  });
+
   isDragging = true;
   gameState = "pulling";
   pullStart.set(event.clientX, event.clientY);
@@ -797,16 +803,25 @@ function onMouseMove(event: MouseEvent) {
 function onMouseUp() {
   if (!isDragging || gameState !== "pulling") return;
 
+  console.log("[onMouseUp] Release detected", {
+    pullDistance,
+    MIN_PULL_DISTANCE,
+    planePosition: plane.position.clone(),
+    launchAngle,
+  });
+
   isDragging = false;
 
   if (pullDistance < MIN_PULL_DISTANCE) {
     // Not enough pull, reset
+    console.log("[onMouseUp] Pull too short, resetting");
     resetPlanePosition();
     gameState = "ready";
     return;
   }
 
   // Launch!
+  console.log("[onMouseUp] Calling launch()");
   launch();
 }
 
@@ -962,6 +977,12 @@ function updateBoosterEffect(deltaTime: number) {
 }
 
 function launch() {
+  console.log("[launch] START", {
+    gameState,
+    pullDistance,
+    currentCheckpoint,
+  });
+
   gameState = "flying";
   launchInstructions.classList.add("hidden");
   checkpointSelector.classList.add("hidden");
@@ -983,6 +1004,13 @@ function launch() {
 
   // Get starting position from checkpoint
   const startZ = getCheckpointStartPosition();
+
+  console.log("[launch] Checkpoint calculation", {
+    currentCheckpoint,
+    startZ,
+    getCheckpointStartPosition: getCheckpointStartPosition(),
+  });
+
   startingZ = startZ; // Remember where we started for distance calculation
 
   // Position plane at the slingshot (launch point), not behind it
@@ -990,7 +1018,20 @@ function launch() {
   plane.rotation.set(0, 0, 0); // Reset rotation for clean launch
 
   // Set velocity based on player-controlled angle
-  velocity.set(0, Math.sin(actualAngle) * power, Math.cos(actualAngle) * power);
+  const newVelocity = {
+    x: 0,
+    y: Math.sin(actualAngle) * power,
+    z: Math.cos(actualAngle) * power,
+  };
+  velocity.set(newVelocity.x, newVelocity.y, newVelocity.z);
+
+  console.log("[launch] After setup", {
+    planePosition: plane.position.clone(),
+    velocity: velocity.clone(),
+    startingZ,
+    power,
+    actualAngleDegrees: (actualAngle * 180) / Math.PI,
+  });
 
   // Minimal tumble at start - plane should fly cleanly initially
   const tumbleMultiplier = upgrades.wings > 0 ? 0.1 : 0.5;
@@ -1010,10 +1051,28 @@ function launch() {
   // Hide rubber bands during flight
   rubberBandLeft.visible = false;
   rubberBandRight.visible = false;
+
+  // Reset physics frame counter for logging
+  physicsFrameCount = 0;
+
+  console.log("[launch] END - gameState is now:", gameState);
 }
+
+let physicsFrameCount = 0;
 
 function updatePhysics(deltaTime: number) {
   if (gameState !== "flying") return;
+
+  physicsFrameCount++;
+  if (physicsFrameCount <= 5) {
+    console.log(`[updatePhysics] Frame ${physicsFrameCount}`, {
+      planePositionZ: plane.position.z,
+      velocityZ: velocity.z,
+      startingZ,
+      distance,
+      deltaTime,
+    });
+  }
 
   // Calculate upgrade effects
   const hasWings = upgrades.wings > 0;
@@ -1140,6 +1199,12 @@ function updatePhysics(deltaTime: number) {
 
   // Check for victory (reached mountain base at 6000m)
   if (plane.position.z >= 6000) {
+    console.log("[updatePhysics] VICTORY TRIGGERED!", {
+      planePositionZ: plane.position.z,
+      startingZ,
+      distance,
+      physicsFrameCount,
+    });
     victory();
     return;
   }
@@ -1228,6 +1293,11 @@ function victory() {
 }
 
 function resetGame() {
+  console.log("[resetGame] START", {
+    currentCheckpoint,
+    gameState,
+  });
+
   gameState = "ready";
   distance = 0;
   highestDistanceThisRun = 0;
@@ -1239,11 +1309,21 @@ function resetGame() {
   slingshot.position.z = startZ;
   startingZ = startZ;
 
+  console.log("[resetGame] After checkpoint setup", {
+    startZ,
+    startingZ,
+    slingshotPositionZ: slingshotPosition.z,
+  });
+
   // Reset plane
   resetPlanePosition();
   plane.rotation.set(0, 0, 0);
   velocity.set(0, 0, 0);
   angularVelocity.set(0, 0, 0);
+
+  console.log("[resetGame] After plane reset", {
+    planePositionZ: plane.position.z,
+  });
 
   // Reset rubber bands
   rubberBandLeft.visible = true;
@@ -1268,6 +1348,11 @@ function resetGame() {
 }
 
 function resetPlanePosition() {
+  console.log("[resetPlanePosition] Setting plane to", {
+    x: slingshotPosition.x,
+    y: slingshotHeight - 0.5,
+    z: slingshotPosition.z,
+  });
   plane.position.set(
     slingshotPosition.x,
     slingshotHeight - 0.5,
