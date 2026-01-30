@@ -988,49 +988,77 @@ function launch() {
   checkpointSelector.classList.add("hidden");
   hudElement.classList.remove("hidden");
 
+  // Get starting position from checkpoint FIRST
+  const startZ = getCheckpointStartPosition();
+
+  // CRITICAL: Ensure startZ is a valid number
+  const safeStartZ =
+    typeof startZ === "number" && !isNaN(startZ) && isFinite(startZ)
+      ? startZ
+      : 0;
+
+  console.log("[launch] Safe start position", {
+    startZ,
+    safeStartZ,
+    currentCheckpoint,
+  });
+
+  startingZ = safeStartZ;
+
+  // CRITICAL: Reset plane position IMMEDIATELY to a known good state
+  plane.position.set(0, slingshotHeight, safeStartZ);
+  plane.rotation.set(0, 0, 0);
+
+  // Reset velocity to zero first
+  velocity.set(0, 0, 0);
+  angularVelocity.set(0, 0, 0);
+
+  // Reset distance
+  distance = 0;
+  highestDistanceThisRun = 0;
+
   // Calculate launch velocity with slingshot upgrade
   const slingshotMultiplier =
     upgrades.slingshot > 0
       ? UPGRADES.slingshot.tiers[upgrades.slingshot - 1].power
       : 1;
 
+  // Clamp pullDistance to valid range
+  const safePullDistance = Math.max(
+    0,
+    Math.min(MAX_PULL_DISTANCE, pullDistance),
+  );
+
   // Ensure minimum power so launches always go somewhere
   const minPower = 20;
-  const basePower = pullDistance * LAUNCH_POWER_MULTIPLIER;
-  const power = Math.max(minPower, basePower) * slingshotMultiplier;
+  const maxPower = 200; // Cap maximum power
+  const basePower = safePullDistance * LAUNCH_POWER_MULTIPLIER;
+  const power = Math.min(
+    maxPower,
+    Math.max(minPower, basePower) * slingshotMultiplier,
+  );
 
   // Calculate actual launch angle from player input (15 to 65 degrees)
-  const actualAngle = (15 + launchAngle * 50) * (Math.PI / 180);
-
-  // Get starting position from checkpoint
-  const startZ = getCheckpointStartPosition();
-
-  console.log("[launch] Checkpoint calculation", {
-    currentCheckpoint,
-    startZ,
-    getCheckpointStartPosition: getCheckpointStartPosition(),
-  });
-
-  startingZ = startZ; // Remember where we started for distance calculation
-
-  // Position plane at the slingshot (launch point), not behind it
-  plane.position.set(0, slingshotHeight, startZ);
-  plane.rotation.set(0, 0, 0); // Reset rotation for clean launch
+  // Clamp launchAngle to valid range
+  const safeLaunchAngle = Math.max(0, Math.min(1, launchAngle));
+  const actualAngle = (15 + safeLaunchAngle * 50) * (Math.PI / 180);
 
   // Set velocity based on player-controlled angle
-  const newVelocity = {
-    x: 0,
-    y: Math.sin(actualAngle) * power,
-    z: Math.cos(actualAngle) * power,
-  };
-  velocity.set(newVelocity.x, newVelocity.y, newVelocity.z);
+  const velY = Math.sin(actualAngle) * power;
+  const velZ = Math.cos(actualAngle) * power;
+
+  // Sanity check velocities
+  const safeVelY = isFinite(velY) && !isNaN(velY) ? velY : 10;
+  const safeVelZ = isFinite(velZ) && !isNaN(velZ) ? velZ : 20;
+
+  velocity.set(0, safeVelY, safeVelZ);
 
   console.log("[launch] After setup", {
-    planePosition: plane.position.clone(),
-    velocity: velocity.clone(),
+    planePositionZ: plane.position.z,
+    velocityZ: velocity.z,
     startingZ,
     power,
-    actualAngleDegrees: (actualAngle * 180) / Math.PI,
+    safePullDistance,
   });
 
   // Minimal tumble at start - plane should fly cleanly initially
@@ -1042,11 +1070,9 @@ function launch() {
     boosterUsesRemaining = UPGRADES.boosters.tiers[upgrades.boosters - 1].uses;
   }
 
-  // Reset distance tracking for this run
-  highestDistanceThisRun = 0;
-
   // Reset launch angle for next time
   launchAngle = 0.5;
+  pullDistance = 0;
 
   // Hide rubber bands during flight
   rubberBandLeft.visible = false;
@@ -1055,13 +1081,54 @@ function launch() {
   // Reset physics frame counter for logging
   physicsFrameCount = 0;
 
-  console.log("[launch] END - gameState is now:", gameState);
+  // FINAL SANITY CHECK - if plane is somehow past 6000, force it back
+  if (plane.position.z >= 6000) {
+    console.error(
+      "[launch] CRITICAL: Plane position was >= 6000, forcing reset!",
+    );
+    plane.position.z = safeStartZ;
+  }
+
+  console.log(
+    "[launch] END - planeZ:",
+    plane.position.z,
+    "startingZ:",
+    startingZ,
+  );
 }
 
 let physicsFrameCount = 0;
 
 function updatePhysics(deltaTime: number) {
   if (gameState !== "flying") return;
+
+  // SANITY CHECK: Clamp deltaTime to prevent physics explosions
+  const safeDeltaTime = Math.min(deltaTime, 0.1);
+
+  // SANITY CHECK: If plane position is invalid, reset the game
+  if (!isFinite(plane.position.z) || isNaN(plane.position.z)) {
+    console.error(
+      "[updatePhysics] INVALID plane.position.z detected!",
+      plane.position.z,
+    );
+    plane.position.z = startingZ;
+    velocity.set(0, 0, 0);
+  }
+
+  // SANITY CHECK: Clamp plane position to reasonable bounds
+  if (plane.position.z > 10000) {
+    console.error("[updatePhysics] Plane Z too large!", plane.position.z);
+    plane.position.z = Math.min(plane.position.z, 6500); // Just past victory
+  }
+
+  // SANITY CHECK: Clamp velocity to prevent teleportation
+  const maxVelocity = 500;
+  if (Math.abs(velocity.x) > maxVelocity)
+    velocity.x = Math.sign(velocity.x) * maxVelocity;
+  if (Math.abs(velocity.y) > maxVelocity)
+    velocity.y = Math.sign(velocity.y) * maxVelocity;
+  if (Math.abs(velocity.z) > maxVelocity)
+    velocity.z = Math.sign(velocity.z) * maxVelocity;
 
   physicsFrameCount++;
   if (physicsFrameCount <= 5) {
@@ -1070,7 +1137,7 @@ function updatePhysics(deltaTime: number) {
       velocityZ: velocity.z,
       startingZ,
       distance,
-      deltaTime,
+      safeDeltaTime,
     });
   }
 
