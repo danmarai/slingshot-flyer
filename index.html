@@ -14,11 +14,15 @@
       <div id="hud" class="hidden">
         <div id="distance-display">0m</div>
         <div id="zone-display">Runway</div>
+        <div id="booster-display" class="hidden">
+          Boost: <span id="booster-count">0</span>
+        </div>
       </div>
 
       <!-- Launch Instructions -->
       <div id="launch-instructions">
-        <p>Click and drag the plane back, then release to launch!</p>
+        <p>Click and drag down to pull back, then release to launch!</p>
+        <p class="controls-hint">Arrow keys to steer | Spacebar to boost</p>
       </div>
 
       <!-- Crash Overlay -->
@@ -29,6 +33,15 @@
           <p>Coins earned: <span id="crash-coins">0</span></p>
           <button id="continue-btn">Continue</button>
         </div>
+      </div>
+
+      <!-- Upgrade Menu -->
+      <div id="upgrade-menu" class="hidden">
+        <div class="upgrade-header">
+          <h2>Upgrades</h2>
+          <button id="close-upgrades">X</button>
+        </div>
+        <div id="upgrade-grid"></div>
       </div>
 
       <!-- Bottom Navigation -->
