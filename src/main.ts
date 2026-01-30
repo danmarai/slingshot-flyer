@@ -44,6 +44,7 @@ const checkpoints = {
 };
 let currentCheckpoint: keyof typeof checkpoints = "runway";
 let highestDistanceThisRun = 0;
+let startingZ = 0; // Track where we launched from
 
 // Keyboard input state
 const keys = {
@@ -959,6 +960,7 @@ function launch() {
 
   // Get starting position from checkpoint
   const startZ = getCheckpointStartPosition();
+  startingZ = startZ; // Remember where we started for distance calculation
 
   // Position plane at the slingshot (launch point), not behind it
   plane.position.set(0, slingshotHeight, startZ);
@@ -1103,9 +1105,10 @@ function updatePhysics(deltaTime: number) {
     }
   }
 
-  // Update distance
-  distance = Math.max(0, plane.position.z);
-  highestDistanceThisRun = Math.max(highestDistanceThisRun, distance);
+  // Update distance (relative to where we started, but show absolute position for zone display)
+  const distanceFromStart = plane.position.z - startingZ;
+  distance = Math.max(0, distanceFromStart);
+  highestDistanceThisRun = Math.max(highestDistanceThisRun, plane.position.z);
 
   // Check for checkpoint unlocks
   checkAndUnlockCheckpoints();
@@ -1114,7 +1117,7 @@ function updatePhysics(deltaTime: number) {
   checkObstacleCollisions();
 
   // Check for victory (reached mountain base at 6000m)
-  if (distance >= 6000) {
+  if (plane.position.z >= 6000) {
     victory();
     return;
   }
@@ -1131,11 +1134,12 @@ function updatePhysics(deltaTime: number) {
 function updateHUD() {
   distanceDisplay.textContent = `${Math.floor(distance)}m`;
 
-  // Determine zone
+  // Determine zone based on absolute position
+  const absolutePosition = startingZ + distance;
   let zoneName = "Runway";
-  if (distance >= ZONES.forest.start) zoneName = "Forest";
-  else if (distance >= ZONES.desert.start) zoneName = "Desert";
-  else if (distance >= ZONES.city.start) zoneName = "City";
+  if (absolutePosition >= ZONES.forest.start) zoneName = "Forest";
+  else if (absolutePosition >= ZONES.desert.start) zoneName = "Desert";
+  else if (absolutePosition >= ZONES.city.start) zoneName = "City";
 
   zoneDisplay.textContent = zoneName;
 
@@ -1205,11 +1209,13 @@ function resetGame() {
   gameState = "ready";
   distance = 0;
   highestDistanceThisRun = 0;
+  startingZ = 0;
 
   // Position slingshot at checkpoint
   const startZ = getCheckpointStartPosition();
   slingshotPosition.z = startZ;
   slingshot.position.z = startZ;
+  startingZ = startZ;
 
   // Reset plane
   resetPlanePosition();
@@ -1313,21 +1319,22 @@ function updateCheckpointUI() {
 
 function checkAndUnlockCheckpoints() {
   let unlocked = false;
+  const absolutePosition = startingZ + distance;
 
   // Unlock city at 100m
-  if (distance >= ZONES.city.start && !checkpoints.city) {
+  if (absolutePosition >= ZONES.city.start && !checkpoints.city) {
     checkpoints.city = true;
     unlocked = true;
   }
 
   // Unlock desert at 1000m
-  if (distance >= ZONES.desert.start && !checkpoints.desert) {
+  if (absolutePosition >= ZONES.desert.start && !checkpoints.desert) {
     checkpoints.desert = true;
     unlocked = true;
   }
 
   // Unlock forest at 3000m
-  if (distance >= ZONES.forest.start && !checkpoints.forest) {
+  if (absolutePosition >= ZONES.forest.start && !checkpoints.forest) {
     checkpoints.forest = true;
     unlocked = true;
   }
