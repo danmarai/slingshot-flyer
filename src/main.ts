@@ -35,6 +35,16 @@ const upgrades = {
   boosters: 0,
 };
 
+// Checkpoints
+const checkpoints = {
+  runway: true, // Always unlocked
+  city: false,
+  desert: false,
+  forest: false,
+};
+let currentCheckpoint: keyof typeof checkpoints = "runway";
+let highestDistanceThisRun = 0;
+
 // Keyboard input state
 const keys = {
   left: false,
@@ -53,6 +63,12 @@ let slingshot: THREE.Group;
 let rubberBandLeft: THREE.Line;
 let rubberBandRight: THREE.Line;
 let ground: THREE.Mesh;
+
+// Booster effects
+let boosterParticles: THREE.Points | null = null;
+let boosterActive = false;
+let boosterTimer = 0;
+const BOOSTER_DURATION = 0.5; // seconds
 
 // Obstacles
 interface Obstacle {
@@ -95,6 +111,8 @@ let closeUpgradesBtn: HTMLElement;
 let playBtn: HTMLElement;
 let boosterDisplay: HTMLElement;
 let boosterCount: HTMLElement;
+let checkpointSelector: HTMLElement;
+let checkpointButtons: NodeListOf<HTMLElement>;
 
 function init() {
   // Get DOM elements
@@ -114,6 +132,10 @@ function init() {
   playBtn = document.getElementById("play-btn")!;
   boosterDisplay = document.getElementById("booster-display")!;
   boosterCount = document.getElementById("booster-count")!;
+  checkpointSelector = document.getElementById("checkpoint-selector")!;
+  checkpointButtons = document.querySelectorAll(
+    ".checkpoint-btn",
+  ) as NodeListOf<HTMLElement>;
 
   // Set up Three.js
   const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
@@ -159,6 +181,16 @@ function init() {
   upgradesBtn.addEventListener("click", openUpgradeMenu);
   closeUpgradesBtn.addEventListener("click", closeUpgradeMenu);
   playBtn.addEventListener("click", closeUpgradeMenu);
+
+  // Checkpoint button handlers
+  checkpointButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const checkpoint = btn.dataset.checkpoint as keyof typeof checkpoints;
+      if (checkpoints[checkpoint]) {
+        selectCheckpoint(checkpoint);
+      }
+    });
+  });
 
   // Load saved coins and upgrades
   loadProgress();
@@ -805,6 +837,7 @@ function activateBooster() {
   if (gameState !== "flying") return;
   if (upgrades.boosters === 0) return;
   if (boosterUsesRemaining <= 0) return;
+  if (boosterActive) return; // Don't allow multiple simultaneous boosts
 
   boosterUsesRemaining--;
 
@@ -816,13 +849,94 @@ function activateBooster() {
   const forward = new THREE.Vector3(0, 0.3, 1).normalize();
   velocity.add(forward.multiplyScalar(boostPower));
 
-  // TODO: Add visual effect for booster
-  console.log(`Booster activated! ${boosterUsesRemaining} uses remaining`);
+  // Start visual effect
+  boosterActive = true;
+  boosterTimer = BOOSTER_DURATION;
+  createBoosterParticles();
+}
+
+function createBoosterParticles() {
+  // Remove existing particles
+  if (boosterParticles) {
+    scene.remove(boosterParticles);
+    boosterParticles.geometry.dispose();
+    (boosterParticles.material as THREE.Material).dispose();
+  }
+
+  // Create particle geometry
+  const particleCount = 50;
+  const positions = new Float32Array(particleCount * 3);
+  const colors = new Float32Array(particleCount * 3);
+
+  for (let i = 0; i < particleCount; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 0.5;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 0.5;
+    positions[i * 3 + 2] = -Math.random() * 2;
+
+    // Orange to yellow gradient
+    colors[i * 3] = 1;
+    colors[i * 3 + 1] = 0.3 + Math.random() * 0.5;
+    colors[i * 3 + 2] = 0;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+  const material = new THREE.PointsMaterial({
+    size: 0.3,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8,
+  });
+
+  boosterParticles = new THREE.Points(geometry, material);
+  scene.add(boosterParticles);
+}
+
+function updateBoosterEffect(deltaTime: number) {
+  if (!boosterActive || !boosterParticles) return;
+
+  boosterTimer -= deltaTime;
+
+  if (boosterTimer <= 0) {
+    // Remove particles
+    boosterActive = false;
+    scene.remove(boosterParticles);
+    boosterParticles.geometry.dispose();
+    (boosterParticles.material as THREE.Material).dispose();
+    boosterParticles = null;
+    return;
+  }
+
+  // Update particle positions to follow plane
+  boosterParticles.position.copy(plane.position);
+  boosterParticles.position.z -= PLANE_LENGTH / 2;
+
+  // Animate particles
+  const positions = boosterParticles.geometry.attributes.position
+    .array as Float32Array;
+  for (let i = 0; i < positions.length / 3; i++) {
+    positions[i * 3 + 2] -= deltaTime * 10; // Move backward
+
+    // Reset particle if too far
+    if (positions[i * 3 + 2] < -3) {
+      positions[i * 3] = (Math.random() - 0.5) * 0.5;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 0.5;
+      positions[i * 3 + 2] = 0;
+    }
+  }
+  boosterParticles.geometry.attributes.position.needsUpdate = true;
+
+  // Fade out
+  (boosterParticles.material as THREE.PointsMaterial).opacity =
+    boosterTimer / BOOSTER_DURATION;
 }
 
 function launch() {
   gameState = "flying";
   launchInstructions.classList.add("hidden");
+  checkpointSelector.classList.add("hidden");
   hudElement.classList.remove("hidden");
 
   // Calculate launch velocity with slingshot upgrade
@@ -831,6 +945,12 @@ function launch() {
       ? UPGRADES.slingshot.tiers[upgrades.slingshot - 1].power
       : 1;
   const power = pullDistance * LAUNCH_POWER_MULTIPLIER * slingshotMultiplier;
+
+  // Get starting position from checkpoint
+  const startZ = getCheckpointStartPosition();
+
+  // Position plane at checkpoint
+  plane.position.z = startZ - pullDistance;
 
   velocity.set(
     0,
@@ -850,6 +970,9 @@ function launch() {
   if (upgrades.boosters > 0) {
     boosterUsesRemaining = UPGRADES.boosters.tiers[upgrades.boosters - 1].uses;
   }
+
+  // Reset distance tracking for this run
+  highestDistanceThisRun = 0;
 
   // Hide rubber bands during flight
   rubberBandLeft.visible = false;
@@ -973,6 +1096,10 @@ function updatePhysics(deltaTime: number) {
 
   // Update distance
   distance = Math.max(0, plane.position.z);
+  highestDistanceThisRun = Math.max(highestDistanceThisRun, distance);
+
+  // Check for checkpoint unlocks
+  checkAndUnlockCheckpoints();
 
   // Check for obstacle collisions
   checkObstacleCollisions();
@@ -1068,6 +1195,12 @@ function victory() {
 function resetGame() {
   gameState = "ready";
   distance = 0;
+  highestDistanceThisRun = 0;
+
+  // Position slingshot at checkpoint
+  const startZ = getCheckpointStartPosition();
+  slingshotPosition.z = startZ;
+  slingshot.position.z = startZ;
 
   // Reset plane
   resetPlanePosition();
@@ -1083,6 +1216,8 @@ function resetGame() {
   // Reset UI
   crashOverlay.classList.add("hidden");
   launchInstructions.classList.remove("hidden");
+  checkpointSelector.classList.remove("hidden");
+  updateCheckpointUI();
 
   // Reset victory overlay text if needed
   const crashContent = crashOverlay.querySelector(".crash-content")!;
@@ -1120,6 +1255,7 @@ function saveProgress() {
     coins,
     highestDistance: Math.max(distance, getSavedHighestDistance()),
     upgrades: { ...upgrades },
+    checkpoints: { ...checkpoints },
   };
   localStorage.setItem("slingshotFlyer", JSON.stringify(saveData));
 }
@@ -1132,7 +1268,11 @@ function loadProgress() {
     if (data.upgrades) {
       Object.assign(upgrades, data.upgrades);
     }
+    if (data.checkpoints) {
+      Object.assign(checkpoints, data.checkpoints);
+    }
   }
+  updateCheckpointUI();
 }
 
 function getSavedHighestDistance(): number {
@@ -1142,6 +1282,63 @@ function getSavedHighestDistance(): number {
     return data.highestDistance || 0;
   }
   return 0;
+}
+
+function selectCheckpoint(checkpoint: keyof typeof checkpoints) {
+  if (!checkpoints[checkpoint]) return;
+
+  currentCheckpoint = checkpoint;
+  updateCheckpointUI();
+}
+
+function updateCheckpointUI() {
+  checkpointButtons.forEach((btn) => {
+    const checkpoint = btn.dataset.checkpoint as keyof typeof checkpoints;
+    const isUnlocked = checkpoints[checkpoint];
+    const isActive = checkpoint === currentCheckpoint;
+
+    btn.classList.toggle("locked", !isUnlocked);
+    btn.classList.toggle("active", isActive);
+  });
+}
+
+function checkAndUnlockCheckpoints() {
+  let unlocked = false;
+
+  // Unlock city at 100m
+  if (distance >= ZONES.city.start && !checkpoints.city) {
+    checkpoints.city = true;
+    unlocked = true;
+  }
+
+  // Unlock desert at 1000m
+  if (distance >= ZONES.desert.start && !checkpoints.desert) {
+    checkpoints.desert = true;
+    unlocked = true;
+  }
+
+  // Unlock forest at 3000m
+  if (distance >= ZONES.forest.start && !checkpoints.forest) {
+    checkpoints.forest = true;
+    unlocked = true;
+  }
+
+  if (unlocked) {
+    saveProgress();
+  }
+}
+
+function getCheckpointStartPosition(): number {
+  switch (currentCheckpoint) {
+    case "city":
+      return ZONES.city.start;
+    case "desert":
+      return ZONES.desert.start;
+    case "forest":
+      return ZONES.forest.start;
+    default:
+      return 0;
+  }
 }
 
 function openUpgradeMenu() {
@@ -1347,6 +1544,7 @@ function animate(time = 0) {
   lastTime = time;
 
   updatePhysics(deltaTime);
+  updateBoosterEffect(deltaTime);
 
   if (gameState === "flying") {
     updateCamera();

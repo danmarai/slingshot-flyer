@@ -25,6 +25,25 @@
         <p class="controls-hint">Arrow keys to steer | Spacebar to boost</p>
       </div>
 
+      <!-- Checkpoint Selector -->
+      <div id="checkpoint-selector">
+        <span class="checkpoint-label">Start from:</span>
+        <div id="checkpoint-buttons">
+          <button class="checkpoint-btn active" data-checkpoint="runway">
+            Runway (0m)
+          </button>
+          <button class="checkpoint-btn locked" data-checkpoint="city">
+            City (100m)
+          </button>
+          <button class="checkpoint-btn locked" data-checkpoint="desert">
+            Desert (1000m)
+          </button>
+          <button class="checkpoint-btn locked" data-checkpoint="forest">
+            Forest (3000m)
+          </button>
+        </div>
+      </div>
+
       <!-- Crash Overlay -->
       <div id="crash-overlay" class="hidden">
         <div class="crash-content">
