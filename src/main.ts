@@ -757,13 +757,24 @@ function onMouseMove(event: MouseEvent) {
 
   // Calculate pull distance (drag down and back)
   const deltaY = pullCurrent.y - pullStart.y;
-  pullDistance = Math.min(MAX_PULL_DISTANCE, Math.max(0, deltaY / 50));
+  pullDistance = Math.min(MAX_PULL_DISTANCE, Math.max(0, deltaY / 30)); // More sensitive
 
-  // Move plane back based on pull
-  plane.position.z = slingshotPosition.z - pullDistance;
-  plane.position.y = slingshotHeight - pullDistance * 0.3;
+  // Move plane back based on pull - more dramatic visual
+  const startZ = getCheckpointStartPosition();
+  plane.position.z = startZ - pullDistance * 1.5; // More visible pullback
+  plane.position.y = slingshotHeight - pullDistance * 0.2;
+
+  // Tilt plane back slightly when pulling
+  plane.rotation.x = -pullDistance * 0.05;
 
   updateRubberBands();
+
+  // Update power indicator in instructions
+  const powerPercent = Math.round((pullDistance / MAX_PULL_DISTANCE) * 100);
+  launchInstructions.querySelector("p")!.textContent =
+    powerPercent > 0
+      ? `Power: ${powerPercent}% - Release to launch!`
+      : "Click and drag down to pull back, then release to launch!";
 }
 
 function onMouseUp() {
@@ -949,22 +960,20 @@ function launch() {
   // Get starting position from checkpoint
   const startZ = getCheckpointStartPosition();
 
-  // Position plane at checkpoint
-  plane.position.z = startZ - pullDistance;
+  // Position plane at the slingshot (launch point), not behind it
+  plane.position.set(0, slingshotHeight, startZ);
+  plane.rotation.set(0, 0, 0); // Reset rotation for clean launch
 
+  // Set velocity - forward and up!
   velocity.set(
     0,
     Math.sin(LAUNCH_ANGLE) * power,
     Math.cos(LAUNCH_ANGLE) * power,
   );
 
-  // Add some tumble (less if has wings)
-  const tumbleMultiplier = upgrades.wings > 0 ? 0.3 : 1;
-  angularVelocity.set(
-    (Math.random() - 0.5) * 2 * tumbleMultiplier,
-    0,
-    (Math.random() - 0.5) * 0.5 * tumbleMultiplier,
-  );
+  // Minimal tumble at start - plane should fly cleanly initially
+  const tumbleMultiplier = upgrades.wings > 0 ? 0.1 : 0.5;
+  angularVelocity.set((Math.random() - 0.5) * tumbleMultiplier, 0, 0);
 
   // Reset booster uses
   if (upgrades.boosters > 0) {

@@ -1,15 +1,15 @@
 // Physics constants
-export const GRAVITY = -20;
-export const BASE_DRAG = 0.02;
+export const GRAVITY = -15; // Reduced for floatier feel
+export const BASE_DRAG = 0.015; // Reduced drag for longer flights
 export const GROUND_FRICTION = 0.05;
-export const BOUNCE_DAMPING = 0.6;
-export const TUMBLE_SLOWDOWN = 0.98; // Speed multiplier when tumbling without wheels
+export const BOUNCE_DAMPING = 0.5;
+export const TUMBLE_SLOWDOWN = 0.95; // Speed multiplier when tumbling without wheels
 
 // Launch constants
-export const MIN_PULL_DISTANCE = 0.5;
-export const MAX_PULL_DISTANCE = 10;
-export const LAUNCH_POWER_MULTIPLIER = 8;
-export const LAUNCH_ANGLE = 20 * (Math.PI / 180); // 20 degrees in radians
+export const MIN_PULL_DISTANCE = 1; // Require more pull to launch
+export const MAX_PULL_DISTANCE = 8;
+export const LAUNCH_POWER_MULTIPLIER = 15; // Much stronger launch
+export const LAUNCH_ANGLE = 30 * (Math.PI / 180); // 30 degrees - higher arc
 
 // Plane dimensions
 export const PLANE_WIDTH = 1;
